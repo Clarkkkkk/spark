@@ -490,6 +490,7 @@ class SparkContext(config: SparkConf) extends Logging {
       HeartbeatReceiver.ENDPOINT_NAME, new HeartbeatReceiver(this))
 
     // Create and start the scheduler
+    // 创建TaskScheduler
     val (sched, ts) = SparkContext.createTaskScheduler(this, master, deployMode)
     _schedulerBackend = sched
     _taskScheduler = ts
@@ -498,6 +499,7 @@ class SparkContext(config: SparkConf) extends Logging {
 
     // start TaskScheduler after taskScheduler sets DAGScheduler reference in DAGScheduler's
     // constructor
+    // 启动TaskScheduler
     _taskScheduler.start()
 
     _applicationId = _taskScheduler.applicationId()
@@ -2408,6 +2410,7 @@ class SparkContext(config: SparkConf) extends Logging {
  * The SparkContext object contains a number of implicit conversions and parameters for use with
  * various Spark features.
  */
+//noinspection ScalaStyle
 object SparkContext extends Logging {
   private val VALID_LOG_LEVELS =
     Set("ALL", "DEBUG", "ERROR", "FATAL", "INFO", "OFF", "TRACE", "WARN")
@@ -2734,6 +2737,7 @@ object SparkContext extends Logging {
         }
         (backend, scheduler)
 
+      // Yarn 模式
       case masterUrl =>
         val cm = getClusterManager(masterUrl) match {
           case Some(clusterMgr) => clusterMgr
@@ -2741,6 +2745,7 @@ object SparkContext extends Logging {
         }
         try {
           val scheduler = cm.createTaskScheduler(sc, masterUrl)
+          // 通过TaskScheduler创建schedulerBackend
           val backend = cm.createSchedulerBackend(sc, masterUrl, scheduler)
           cm.initialize(scheduler, backend)
           (backend, scheduler)

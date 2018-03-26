@@ -258,15 +258,23 @@ private[deploy] class Master(
 
     case RegisterApplication(description, driver) =>
       // TODO Prevent repeated registrations from some driver
+      // 如果Master是备用
+      // 什么都不干
       if (state == RecoveryState.STANDBY) {
         // ignore, don't send response
       } else {
+        // 主 Master
         logInfo("Registering app " + description.name)
         val app = createApplication(description, driver)
+        // APP 注册
+        // AppInfo加入缓存，App加入队列
         registerApplication(app)
         logInfo("Registered app " + description.name + " with ID " + app.id)
+        // 将AppInfo持久化
         persistenceEngine.addApplication(app)
+        // 反向发送RegisteredApp消息
         driver.send(RegisteredApplication(app.id, self))
+        // 调度
         schedule()
       }
 
@@ -827,13 +835,16 @@ private[deploy] class Master(
 
   private def createApplication(desc: ApplicationDescription, driver: RpcEndpointRef):
       ApplicationInfo = {
+    // 封装应用信息
     val now = System.currentTimeMillis()
     val date = new Date(now)
+    // 通过时间戳生成唯一ID
     val appId = newApplicationId(date)
     new ApplicationInfo(now, appId, desc, date, driver, defaultCores)
   }
 
   private def registerApplication(app: ApplicationInfo): Unit = {
+    // Driver 地址
     val appAddress = app.driver.address
     if (addressToApp.contains(appAddress)) {
       logInfo("Attempted to re-register application at same address: " + appAddress)
@@ -841,10 +852,15 @@ private[deploy] class Master(
     }
 
     applicationMetricsSystem.registerSource(app.appSource)
+    // 将App信息加入内存缓存
+    // App内存缓存（HashSet）
     apps += app
     idToApp(app.id) = app
     endpointToApp(app.driver) = app
     addressToApp(appAddress) = app
+
+    // 加入等待调度队列
+    // ArrayBuffer
     waitingApps += app
   }
 
