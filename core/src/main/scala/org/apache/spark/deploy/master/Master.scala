@@ -634,14 +634,17 @@ private[deploy] class Master(
     var coresToAssign = math.min(app.coresLeft, usableWorkers.map(_.coresFree).sum)
 
     /** Return whether the specified worker can launch an executor for this app. */
+    // 判断该Worker能否为app启动一个Executor
     def canLaunchExecutor(pos: Int): Boolean = {
       val keepScheduling = coresToAssign >= minCoresPerExecutor
       val enoughCores = usableWorkers(pos).coresFree - assignedCores(pos) >= minCoresPerExecutor
 
       // If we allow multiple executors per worker, then we can always launch new executors.
       // Otherwise, if there is already an executor on this worker, just give it more cores.
+      // 每个Worker是否只能有一个Executor，如果是检查是否已经分配了Executor
       val launchingNewExecutor = !oneExecutorPerWorker || assignedExecutors(pos) == 0
       if (launchingNewExecutor) {
+        // 可以分配多个Executor或者Worker还未分配Executor
         val assignedMemory = assignedExecutors(pos) * memoryPerExecutor
         val enoughMemory = usableWorkers(pos).memoryFree - assignedMemory >= memoryPerExecutor
         val underLimit = assignedExecutors.sum + app.executors.size < app.executorLimit
@@ -649,6 +652,7 @@ private[deploy] class Master(
       } else {
         // We're adding cores to an existing executor, so no need
         // to check memory and executor limits
+        // One ExecutorPerWorker 机制下不检查内存是否够用
         keepScheduling && enoughCores
       }
     }
@@ -660,11 +664,16 @@ private[deploy] class Master(
       freeWorkers.foreach { pos =>
         var keepScheduling = true
         while (keepScheduling && canLaunchExecutor(pos)) {
+          // 要分配的core数
           coresToAssign -= minCoresPerExecutor
+          // Woker上已经被分配的core数
           assignedCores(pos) += minCoresPerExecutor
 
           // If we are launching one executor per worker, then every iteration assigns 1 core
           // to the executor. Otherwise, every iteration assigns cores to a new executor.
+          // oneExecutorPerWorker下每次加一个minCoresPerExecutor数目的core不加executor，不然每次加
+          // 一个新的Executor
+          // assignedExecutors 用于做内存检查
           if (oneExecutorPerWorker) {
             assignedExecutors(pos) = 1
           } else {
@@ -675,11 +684,14 @@ private[deploy] class Master(
           // many workers as possible. If we are not spreading out, then we should keep
           // scheduling executors on this worker until we use all of its resources.
           // Otherwise, just move on to the next worker.
+          // spreadOut策略，使用最少的机器还是最多的机器
           if (spreadOutApps) {
             keepScheduling = false
           }
         }
       }
+      // 如果有Worker满足启动条件，freeWorkers不会为空
+      // 如果 keepScheduling = coresToAssign >= minCoresPerExecutor 为false，freeWorkers为空
       freeWorkers = freeWorkers.filter(canLaunchExecutor)
     }
     assignedCores
@@ -691,10 +703,13 @@ private[deploy] class Master(
   private def startExecutorsOnWorkers(): Unit = {
     // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
     // in the queue, then the second app, etc.
+    // 遍历waitingApps中的ApplicationInfo
     for (app <- waitingApps) {
       val coresPerExecutor = app.desc.coresPerExecutor.getOrElse(1)
       // If the cores left is less than the coresPerExecutor,the cores left will not be allocated
+      // TODO ? 剩下的app所需的core怎么办？
       if (app.coresLeft >= coresPerExecutor) {
+        // 过滤出状态为Alive并有足够资源启动Application的Worker
         // Filter out workers that don't have enough resources to launch an executor
         val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)
           .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
@@ -704,6 +719,7 @@ private[deploy] class Master(
 
         // Now that we've decided how many cores to allocate on each worker, let's allocate them
         for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
+          // 在每个Worker上启动App的Executor
           allocateWorkerResourceToExecutors(
             app, assignedCores(pos), app.desc.coresPerExecutor, usableWorkers(pos))
         }
@@ -729,7 +745,9 @@ private[deploy] class Master(
     val numExecutors = coresPerExecutor.map { assignedCores / _ }.getOrElse(1)
     val coresToAssign = coresPerExecutor.getOrElse(assignedCores)
     for (i <- 1 to numExecutors) {
+      // 更新Worker资源缓存， 得到ExecutorDesc描述文件
       val exec = app.addExecutor(worker, coresToAssign)
+      //
       launchExecutor(worker, exec)
       app.state = ApplicationState.RUNNING
     }
@@ -771,14 +789,17 @@ private[deploy] class Master(
         curPos = (curPos + 1) % numWorkersAlive
       }
     }
+    // Application 的调度机制
     startExecutorsOnWorkers()
   }
 
   private def launchExecutor(worker: WorkerInfo, exec: ExecutorDesc): Unit = {
     logInfo("Launching executor " + exec.fullId + " on worker " + worker.id)
     worker.addExecutor(exec)
+    // 向Worker发送启动Executor消息
     worker.endpoint.send(LaunchExecutor(masterUrl,
       exec.application.id, exec.id, exec.application.desc, exec.cores, exec.memory))
+    // 向Driver发送Executor增加的消息
     exec.application.driver.send(
       ExecutorAdded(exec.id, worker.id, worker.hostPort, exec.cores, exec.memory))
   }
