@@ -740,23 +740,30 @@ private[deploy] class Master(
    * every time a new app joins or resource availability changes.
    */
   private def schedule(): Unit = {
+    // 确保Maser是Active的
     if (state != RecoveryState.ALIVE) {
       return
     }
     // Drivers take strict precedence over executors
+    // 随机打乱并取出所有注册的状态为Alive的Worker
     val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.state == WorkerState.ALIVE))
     val numWorkersAlive = shuffledAliveWorkers.size
     var curPos = 0
+    // 首先调度Driver
+    // 只有用Yarn-cluster模式提交的时候才会注册Driver，其他模式Driver启动在本地
     for (driver <- waitingDrivers.toList) { // iterate over a copy of waitingDrivers
       // We assign workers to each waiting driver in a round-robin fashion. For each driver, we
       // start from the last worker that was assigned a driver, and continue onwards until we have
       // explored all alive workers.
       var launched = false
       var numWorkersVisited = 0
+      // 只要还有Alive的Worker没有遍历到就继续遍历
+      // 并且当前Driver还没有启动
       while (numWorkersVisited < numWorkersAlive && !launched) {
         val worker = shuffledAliveWorkers(curPos)
         numWorkersVisited += 1
         if (worker.memoryFree >= driver.desc.mem && worker.coresFree >= driver.desc.cores) {
+          // 当前Worker mem和core满足Driver需要，启动Driver
           launchDriver(worker, driver)
           waitingDrivers -= driver
           launched = true
@@ -1049,9 +1056,13 @@ private[deploy] class Master(
 
   private def launchDriver(worker: WorkerInfo, driver: DriverInfo) {
     logInfo("Launching driver " + driver.id + " on worker " + worker.id)
+    // 将Driver加入Worker缓存, 更新Worker的Core和Mem使用
     worker.addDriver(driver)
+    // 将Worker加入Driver缓存
     driver.worker = Some(worker)
+    // 通知Worker启动Driver
     worker.endpoint.send(LaunchDriver(driver.id, driver.desc))
+    // 将Driver状态设为running
     driver.state = DriverState.RUNNING
   }
 
