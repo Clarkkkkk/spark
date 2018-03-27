@@ -484,6 +484,7 @@ private[deploy] class Worker(
           logInfo("Asked to launch executor %s/%d for %s".format(appId, execId, appDesc.name))
 
           // Create the executor's working directory
+          // 创建本地工作目录
           val executorDir = new File(workDir, appId + "/" + execId)
           if (!executorDir.mkdirs()) {
             throw new IOException("Failed to create directory " + executorDir)
@@ -512,6 +513,7 @@ private[deploy] class Worker(
             dirs
           })
           appDirectories(appId) = appLocalDirs
+          // 启动ExecutorRunner
           val manager = new ExecutorRunner(
             appId,
             execId,
@@ -528,10 +530,13 @@ private[deploy] class Worker(
             workerUri,
             conf,
             appLocalDirs, ExecutorState.RUNNING)
+          // 更新Worker缓存
           executors(appId + "/" + execId) = manager
+          // 启动ExecutorRunnuer
           manager.start()
           coresUsed += cores_
           memoryUsed += memory_
+          // 通知Master 关于Executor状态改变
           sendToMaster(ExecutorStateChanged(appId, execId, manager.state, None, None))
         } catch {
           case e: Exception =>
@@ -564,6 +569,7 @@ private[deploy] class Worker(
 
     case LaunchDriver(driverId, driverDesc) =>
       logInfo(s"Asked to launch driver $driverId")
+      // 启动DriverRunner线程
       val driver = new DriverRunner(
         conf,
         driverId,
@@ -575,7 +581,7 @@ private[deploy] class Worker(
         securityMgr)
       drivers(driverId) = driver
       driver.start()
-
+      // 更新Worker缓存
       coresUsed += driverDesc.cores
       memoryUsed += driverDesc.mem
 
@@ -689,6 +695,7 @@ private[deploy] class Worker(
     }
   }
 
+  // 接收到DriverRunner发送的事件
   private[worker] def handleDriverStateChanged(driverStateChanged: DriverStateChanged): Unit = {
     val driverId = driverStateChanged.driverId
     val exception = driverStateChanged.exception
@@ -705,7 +712,9 @@ private[deploy] class Worker(
       case _ =>
         logDebug(s"Driver $driverId changed state to $state")
     }
+    // 发送DriverRunner状态改变消息给Master
     sendToMaster(driverStateChanged)
+    // 将Driver从本地缓存移除， 加入完成队列，释放资源
     val driver = drivers.remove(driverId).get
     finishedDrivers(driverId) = driver
     trimFinishedDriversIfNecessary()
@@ -715,8 +724,10 @@ private[deploy] class Worker(
 
   private[worker] def handleExecutorStateChanged(executorStateChanged: ExecutorStateChanged):
     Unit = {
+    // 向Master也发送Executor状态改变消息
     sendToMaster(executorStateChanged)
     val state = executorStateChanged.state
+    // 如果完成
     if (ExecutorState.isFinished(state)) {
       val appId = executorStateChanged.appId
       val fullId = appId + "/" + executorStateChanged.execId
@@ -727,9 +738,11 @@ private[deploy] class Worker(
           logInfo("Executor " + fullId + " finished with state " + state +
             message.map(" message " + _).getOrElse("") +
             exitStatus.map(" exitStatus " + _).getOrElse(""))
+          // 移除Executor
           executors -= fullId
           finishedExecutors(fullId) = executor
           trimFinishedExecutorsIfNecessary()
+          // 释放资源
           coresUsed -= executor.cores
           memoryUsed -= executor.memory
         case None =>

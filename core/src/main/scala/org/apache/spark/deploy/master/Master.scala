@@ -335,6 +335,7 @@ private[deploy] class Master(
           logWarning(s"Got status update for unknown executor $appId/$execId")
       }
 
+    // 接收到Worker关于Driver状态改变的消息
     case DriverStateChanged(driverId, state, exception) =>
       state match {
         // 四种情况下RemoveDriver

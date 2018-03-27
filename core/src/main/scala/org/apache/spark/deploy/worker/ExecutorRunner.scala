@@ -69,6 +69,7 @@ private[deploy] class ExecutorRunner(
   private var shutdownHook: AnyRef = null
 
   private[worker] def start() {
+    // 启动ExecutorRunner线程
     workerThread = new Thread("ExecutorRunner for " + fullId) {
       override def run() { fetchAndRunExecutor() }
     }
@@ -148,6 +149,7 @@ private[deploy] class ExecutorRunner(
       val formattedCommand = command.asScala.mkString("\"", "\" \"", "\"")
       logInfo(s"Launch command: $formattedCommand")
 
+      // 获取Executor工作目录
       builder.directory(executorDir)
       builder.environment.put("SPARK_EXECUTOR_DIRS", appLocalDirs.mkString(File.pathSeparator))
       // In case we are running this from within the Spark Shell, avoid creating a "scala"
@@ -164,11 +166,13 @@ private[deploy] class ExecutorRunner(
       builder.environment.put("SPARK_LOG_URL_STDERR", s"${baseUrl}stderr")
       builder.environment.put("SPARK_LOG_URL_STDOUT", s"${baseUrl}stdout")
 
+      // 启动Executor进程
       process = builder.start()
       val header = "Spark Executor Command: %s\n%s\n\n".format(
         formattedCommand, "=" * 40)
 
       // Redirect its stdout and stderr to files
+      // 重定向输出流到本地工作目录文件
       val stdout = new File(executorDir, "stdout")
       stdoutAppender = FileAppender(process.getInputStream, stdout, conf)
 
@@ -178,9 +182,11 @@ private[deploy] class ExecutorRunner(
 
       // Wait for it to exit; executor may exit with code 0 (when driver instructs it to shutdown)
       // or with nonzero exit code
+      // 启动executor进程
       val exitCode = process.waitFor()
       state = ExecutorState.EXITED
       val message = "Command exited with code " + exitCode
+      // 向Worker发送Executor状态改变消息
       worker.send(ExecutorStateChanged(appId, execId, state, Some(message), Some(exitCode)))
     } catch {
       case interrupted: InterruptedException =>

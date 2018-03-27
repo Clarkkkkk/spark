@@ -35,6 +35,10 @@ import org.apache.spark.rpc.RpcEndpointRef
 import org.apache.spark.util.{Clock, ShutdownHookManager, SystemClock, Utils}
 
 /**
+  * 管理Driver执行
+  * 失败重启Driver
+  */
+/**
  * Manages the execution of one driver, including automatically restarting the driver on failure.
  * This is currently only used in standalone cluster deploy mode.
  */
@@ -92,6 +96,7 @@ private[deploy] class DriverRunner(
           val exitCode = prepareAndRunDriver()
 
           // set final state depending on if forcibly killed and process exit code
+          // 处理Driver的退出状态
           finalState = if (exitCode == 0) {
             Some(DriverState.FINISHED)
           } else if (killed) {
@@ -111,6 +116,7 @@ private[deploy] class DriverRunner(
         }
 
         // notify worker of final driver state, possible exception
+        // DriverRunner向Worker发送DriverStateChanged事件
         worker.send(DriverStateChanged(driverId, finalState.get, finalException))
       }
     }.start()
@@ -147,6 +153,11 @@ private[deploy] class DriverRunner(
    * Download the user jar into the supplied directory and return its local path.
    * Will throw an exception if there are errors downloading the jar.
    */
+  /**
+    * 下载用户Jar包，有问题会抛异常
+    * @param driverDir
+    * @return
+    */
   private def downloadUserJar(driverDir: File): String = {
     val jarFileName = new URI(driverDesc.jarUrl).getPath.split("/").last
     val localJarFile = new File(driverDir, jarFileName)
@@ -169,7 +180,9 @@ private[deploy] class DriverRunner(
   }
 
   private[worker] def prepareAndRunDriver(): Int = {
+    // 创建Driver工作目录
     val driverDir = createWorkingDirectory()
+    // 下载用户上传Jar包
     val localJarFilename = downloadUserJar(driverDir)
 
     def substituteVariables(argument: String): String = argument match {
@@ -179,6 +192,8 @@ private[deploy] class DriverRunner(
     }
 
     // TODO: If we add ability to submit multiple jars they should also be added here
+    // 构建ProcessBuilder
+    // 传入Driver启动命令和内存等
     val builder = CommandUtils.buildProcessBuilder(driverDesc.command, securityManager,
       driverDesc.mem, sparkHome.getAbsolutePath, substituteVariables)
 
@@ -189,6 +204,7 @@ private[deploy] class DriverRunner(
     builder.directory(baseDir)
     def initialize(process: Process): Unit = {
       // Redirect stdout and stderr to files
+      // 重定向输出到文件
       val stdout = new File(baseDir, "stdout")
       CommandUtils.redirectStream(process.getInputStream, stdout)
 
@@ -220,6 +236,7 @@ private[deploy] class DriverRunner(
       }
 
       val processStart = clock.getTimeMillis()
+      // 启动Driver进程
       exitCode = process.get.waitFor()
 
       // check if attempting another run
