@@ -201,6 +201,7 @@ private[deploy] class Master(
   }
 
   override def electedLeader() {
+    // HA模式下Zookeeper回调该方法
     self.send(ElectedLeader)
   }
 
@@ -210,6 +211,7 @@ private[deploy] class Master(
 
   override def receive: PartialFunction[Any, Unit] = {
     case ElectedLeader =>
+      // 得到新的Master，从持久化引擎中恢复App，Driver，Workers信息
       val (storedApps, storedDrivers, storedWorkers) = persistenceEngine.readPersistedData(rpcEnv)
       state = if (storedApps.isEmpty && storedDrivers.isEmpty && storedWorkers.isEmpty) {
         RecoveryState.ALIVE
@@ -217,10 +219,12 @@ private[deploy] class Master(
         RecoveryState.RECOVERING
       }
       logInfo("I have been elected leader! New state: " + state)
+      // 如果有任何信息非空，进入CompleteRecovery模式
       if (state == RecoveryState.RECOVERING) {
         beginRecovery(storedApps, storedDrivers, storedWorkers)
         recoveryCompletionTask = forwardMessageThread.schedule(new Runnable {
           override def run(): Unit = Utils.tryLogNonFatalError {
+            // 发送CompleteRecovery消息
             self.send(CompleteRecovery)
           }
         }, WORKER_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -547,11 +551,16 @@ private[deploy] class Master(
     }
   }
 
+  // 完成Master恢复
   private def completeRecovery() {
+    // 1. 从内存缓存中移除
+    // 2. 从相关组件内存缓存中移除
+    // 3. 从持久化存储中移除
     // Ensure "only-once" recovery semantics using a short synchronization period.
     if (state != RecoveryState.RECOVERING) { return }
     state = RecoveryState.COMPLETING_RECOVERY
 
+    // 过滤出状态是Unknown的Application和Worker并清理
     // Kill off any workers and apps that didn't respond to us.
     workers.filter(_.state == WorkerState.UNKNOWN).foreach(
       removeWorker(_, "Not responding for recovery"))
@@ -789,18 +798,22 @@ private[deploy] class Master(
 
   private def removeWorker(worker: WorkerInfo, msg: String) {
     logInfo("Removing worker " + worker.id + " on " + worker.host + ":" + worker.port)
+    // 清理时状态设为DEAD
     worker.setState(WorkerState.DEAD)
+    // 移除出缓存
     idToWorker -= worker.id
     addressToWorker -= worker.endpoint.address
 
     for (exec <- worker.executors.values) {
       logInfo("Telling app of lost executor: " + exec.id)
+      // 通知Driver移除Executor
       exec.application.driver.send(ExecutorUpdated(
         exec.id, ExecutorState.LOST, Some("worker lost"), None, workerLost = true))
       exec.state = ExecutorState.LOST
       exec.application.removeExecutor(exec)
     }
     for (driver <- worker.drivers.values) {
+      // desc.supervice 决定Driver挂掉后是否自动重启
       if (driver.desc.supervise) {
         logInfo(s"Re-launching ${driver.id}")
         relaunchDriver(driver)
@@ -813,6 +826,7 @@ private[deploy] class Master(
     apps.filterNot(completedApps.contains(_)).foreach { app =>
       app.driver.send(WorkerRemoved(worker.id, worker.host, msg))
     }
+    // 移除持久化信息
     persistenceEngine.removeWorker(worker)
   }
 
@@ -871,6 +885,7 @@ private[deploy] class Master(
   def removeApplication(app: ApplicationInfo, state: ApplicationState.Value) {
     if (apps.contains(app)) {
       logInfo("Removing app " + app.id)
+      // 移除出内存缓存
       apps -= app
       idToApp -= app.id
       endpointToApp -= app.driver
@@ -886,13 +901,16 @@ private[deploy] class Master(
       completedApps += app // Remember it in our history
       waitingApps -= app
 
+      // 移除占用的Executor
       for (exec <- app.executors.values) {
         killExecutor(exec)
       }
       app.markFinished(state)
       if (state != ApplicationState.FINISHED) {
+        // 从Driver移除App
         app.driver.send(ApplicationRemoved(state.toString))
       }
+      // 移除持久化信息
       persistenceEngine.removeApplication(app)
       schedule()
 
