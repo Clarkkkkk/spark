@@ -36,6 +36,13 @@ import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.{AccumulatorV2, ThreadUtils, Utils}
 
 /**
+  * 1. 通过SchedulerBackend，针对不同cluster调度task
+  * 2. isLocal为true, 则通过LocalBackend
+  * 3. 通用逻辑，e.g.job调度顺序， 启动推测任务执行
+  * 4. 客户端调用initialize()和start(), 通过runTasks()提交task sets
+  */
+
+/**
  * Schedules tasks for multiple types of clusters by acting through a SchedulerBackend.
  * It can also work with a local setup by using a `LocalSchedulerBackend` and setting
  * isLocal to true. It handles common logic, like determining a scheduling order across jobs, waking
@@ -133,6 +140,7 @@ private[spark] class TaskSchedulerImpl(
         throw new SparkException(s"Unrecognized $SCHEDULER_MODE_PROPERTY: $schedulingModeConf")
     }
 
+  // 调度池初始化
   val rootPool: Pool = new Pool("", schedulingMode, 0, 0)
 
   // This is a var so that we can reset it for testing purposes.
@@ -144,6 +152,7 @@ private[spark] class TaskSchedulerImpl(
 
   def initialize(backend: SchedulerBackend) {
     this.backend = backend
+    // 创建调度池，指定调度策略
     schedulableBuilder = {
       schedulingMode match {
         case SchedulingMode.FIFO =>
@@ -161,6 +170,7 @@ private[spark] class TaskSchedulerImpl(
   def newTaskId(): Long = nextTaskId.getAndIncrement()
 
   override def start() {
+    //
     backend.start()
 
     if (!isLocal && conf.getBoolean("spark.speculation", false)) {

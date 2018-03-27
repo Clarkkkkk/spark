@@ -34,6 +34,11 @@ import org.apache.spark.rpc._
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
 /**
+  * 负责application与cluster通信
+  * 接受master url和appDesc和监听器，监听事件回调函数
+  */
+
+/**
  * Interface allowing applications to speak with a Spark standalone cluster manager.
  *
  * Takes a master URL, an app description, and a listener for cluster events, and calls
@@ -83,6 +88,7 @@ private[spark] class StandaloneAppClient(
 
     override def onStart(): Unit = {
       try {
+        // 注册到Master
         registerWithMaster(1)
       } catch {
         case e: Exception =>
@@ -104,6 +110,7 @@ private[spark] class StandaloneAppClient(
             }
             logInfo("Connecting to master " + masterAddress.toSparkURL + "...")
             val masterRef = rpcEnv.setupEndpointRef(masterAddress, Master.ENDPOINT_NAME)
+            // 发送RegisterApplication消息到master，封装了appDesc
             masterRef.send(RegisterApplication(appDescription, self))
           } catch {
             case ie: InterruptedException => // Cancelled
@@ -121,6 +128,7 @@ private[spark] class StandaloneAppClient(
      * nthRetry means this is the nth attempt to register with master.
      */
     private def registerWithMaster(nthRetry: Int) {
+      // 尝试连接所有Master
       registerMasterFutures.set(tryRegisterAllMasters())
       registrationRetryTimer.set(registrationRetryThread.schedule(new Runnable {
         override def run(): Unit = {

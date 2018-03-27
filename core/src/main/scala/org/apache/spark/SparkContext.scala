@@ -494,12 +494,13 @@ class SparkContext(config: SparkConf) extends Logging {
     val (sched, ts) = SparkContext.createTaskScheduler(this, master, deployMode)
     _schedulerBackend = sched
     _taskScheduler = ts
+    // 创建DAGScheduler
     _dagScheduler = new DAGScheduler(this)
     _heartbeatReceiver.ask[Boolean](TaskSchedulerIsSet)
 
     // start TaskScheduler after taskScheduler sets DAGScheduler reference in DAGScheduler's
     // constructor
-    // 启动TaskScheduler
+    // 启动TaskScheduler， 主要就是启动backend
     _taskScheduler.start()
 
     _applicationId = _taskScheduler.applicationId()
@@ -2710,10 +2711,13 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+      // Standalone模式
       case SPARK_REGEX(sparkUrl) =>
         val scheduler = new TaskSchedulerImpl(sc)
         val masterUrls = sparkUrl.split(",").map("spark://" + _)
+        // 就是原先的SparkDeploySchedulerBackend
         val backend = new StandaloneSchedulerBackend(scheduler, sc, masterUrls)
+        // 初始化Scheduler
         scheduler.initialize(backend)
         (backend, scheduler)
 
