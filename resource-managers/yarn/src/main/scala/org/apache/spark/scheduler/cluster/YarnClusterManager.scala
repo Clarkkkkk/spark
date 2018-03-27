@@ -30,6 +30,7 @@ private[spark] class YarnClusterManager extends ExternalClusterManager {
   }
 
   override def createTaskScheduler(sc: SparkContext, masterURL: String): TaskScheduler = {
+    // 通过YarnClusterManager来启动TaskScheduler
     sc.deployMode match {
       case "cluster" => new YarnClusterScheduler(sc)
       case "client" => new YarnScheduler(sc)

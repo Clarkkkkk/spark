@@ -36,6 +36,9 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages._
 import org.apache.spark.ui.JettyUtils
 import org.apache.spark.util.{RpcUtils, ThreadUtils}
 
+/*
+ * 继承了CoarseGrainedSchedulerBackend，该类也是StandaloneSchedulerBackend的父类
+ */
 /**
  * Abstract Yarn scheduler backend that contains common logic
  * between the client and cluster Yarn scheduler backends.
@@ -85,6 +88,7 @@ private[spark] abstract class YarnSchedulerBackend(
   }
 
   override def start() {
+    // 没有appDesc，由Yarn托管
     require(appId.isDefined, "application ID unset")
     val binding = SchedulerExtensionServiceBinding(sc, appId.get, attemptId)
     services.start(binding)
