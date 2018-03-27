@@ -286,6 +286,8 @@ private[deploy] class Master(
       val execOption = idToApp.get(appId).flatMap(app => app.executors.get(execId))
       execOption match {
         case Some(exec) =>
+          // 如果找到appId对应的Executor
+          // 设置Executor当前状态
           val appInfo = idToApp(appId)
           val oldState = exec.state
           exec.state = state
@@ -295,10 +297,11 @@ private[deploy] class Master(
               s"executor $execId state transfer from $oldState to RUNNING is illegal")
             appInfo.resetRetryCount()
           }
-
+          // 通知driver ExecutorUpdated
           exec.application.driver.send(ExecutorUpdated(execId, state, message, exitStatus, false))
 
           if (ExecutorState.isFinished(state)) {
+            // 若果Executor完成了，从app缓存中移除
             // Remove this executor from the worker and app
             logInfo(s"Removing executor ${exec.fullId} because it is $state")
             // If an application has already finished, preserve its
@@ -306,6 +309,7 @@ private[deploy] class Master(
             if (!appInfo.isFinished) {
               appInfo.removeExecutor(exec)
             }
+            // 从worker缓存中移除
             exec.worker.removeExecutor(exec)
 
             val normalExit = exitStatus == Some(0)
@@ -315,6 +319,9 @@ private[deploy] class Master(
             if (!normalExit
                 && appInfo.incrementRetryCount() >= MAX_EXECUTOR_RETRIES
                 && MAX_EXECUTOR_RETRIES >= 0) { // < 0 disables this application-killing path
+              // 退出状态非正常并超出重试最大次数
+              // Executor反复调度失败，认为App也失败
+              // 移除Application
               val execs = appInfo.executors.values
               if (!execs.exists(_.state == ExecutorState.RUNNING)) {
                 logError(s"Application ${appInfo.desc.name} with ID ${appInfo.id} failed " +
@@ -330,6 +337,7 @@ private[deploy] class Master(
 
     case DriverStateChanged(driverId, state, exception) =>
       state match {
+        // 四种情况下RemoveDriver
         case DriverState.ERROR | DriverState.FINISHED | DriverState.KILLED | DriverState.FAILED =>
           removeDriver(driverId, state, exception)
         case _ =>
@@ -1051,18 +1059,24 @@ private[deploy] class Master(
       driverId: String,
       finalState: DriverState,
       exception: Option[Exception]) {
+    // 找到driverId对应Driver
     drivers.find(d => d.id == driverId) match {
       case Some(driver) =>
+        // 找到Driver后从内存缓存中清楚
         logInfo(s"Removing driver: $driverId")
         drivers -= driver
         if (completedDrivers.size >= RETAINED_DRIVERS) {
           val toRemove = math.max(RETAINED_DRIVERS / 10, 1)
           completedDrivers.trimStart(toRemove)
         }
+        // 加入到completeDrivers中
         completedDrivers += driver
+        // 持久化
         persistenceEngine.removeDriver(driver)
+        // 设置状态
         driver.state = finalState
         driver.exception = exception
+        // 从worker移除Driver
         driver.worker.foreach(w => w.removeDriver(driver))
         schedule()
       case None =>
