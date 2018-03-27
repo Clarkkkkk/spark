@@ -47,6 +47,11 @@ import org.apache.spark.util.collection.MedianHeap
  * @param maxTaskFailures if any particular task fails this number of times, the entire
  *                        task set will be aborted
  */
+/**
+  * 在TaskScheduler中对单独的TaskSet任务进行调度，负责追踪每一个task，如果失败会重试知道超过重试次数
+  * 通过延迟调度，为TaskSet处理本地化调度机制
+  * 主要接口是resourceOffer， TaskSet希望在一个节点上运行任务并接收任务状态改变消息，来获知负责的task状态改变
+  */
 private[spark] class TaskSetManager(
     sched: TaskSchedulerImpl,
     val taskSet: TaskSet,
@@ -434,6 +439,10 @@ private[spark] class TaskSetManager(
    * @param host  the host Id of the offered resource
    * @param maxLocality the maximum locality we want to schedule the tasks at
    */
+  /**
+    * 判断这个executor在这个本地化级别之前的等待时间是多少
+    * 如果本地化级别的等待时间在一定范围内，就认为task使用该本地化级别可以再executor上启动
+    */
   @throws[TaskNotSerializableException]
   def resourceOffer(
       execId: String,

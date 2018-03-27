@@ -132,6 +132,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           }
         }
 
+      //TaskScheduler通过backend发送的的消息
       case ReviveOffers =>
         makeOffers()
 
@@ -245,9 +246,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           case (id, executorData) =>
             new WorkerOffer(id, executorData.executorHost, executorData.freeCores)
         }.toIndexedSeq
+        // 调用TaskScheduler的resourceOffer方法将各个task分配到executor上去
+        // WorkerOffer是Application所有可用的Executor的封装，代表了CPU资源数量
         scheduler.resourceOffers(workOffers)
       }
       if (!taskDescs.isEmpty) {
+        // task分配完成后执行launchTasks，将LaunchTask发送到对应executor上去
         launchTasks(taskDescs)
       }
     }
@@ -285,8 +289,10 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
     }
 
     // Launch tasks returned by a set of resource offers
+    // 根据分配好的轻快在executor上启动相应的task
     private def launchTasks(tasks: Seq[Seq[TaskDescription]]) {
       for (task <- tasks.flatten) {
+        // 序列化
         val serializedTask = TaskDescription.encode(task)
         if (serializedTask.limit() >= maxRpcMessageSize) {
           scheduler.taskIdToTaskSetManager.get(task.taskId).foreach { taskSetMgr =>
@@ -302,12 +308,14 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           }
         }
         else {
+          // 找到对应Executor
           val executorData = executorDataMap(task.executorId)
+          // 给executor上的资源减去使用的CPU资源
           executorData.freeCores -= scheduler.CPUS_PER_TASK
 
           logDebug(s"Launching task ${task.taskId} on executor id: ${task.executorId} hostname: " +
             s"${executorData.executorHost}.")
-
+          // 发送LaunchTask消息来在executor上启动task
           executorData.executorEndpoint.send(LaunchTask(new SerializableBuffer(serializedTask)))
         }
       }

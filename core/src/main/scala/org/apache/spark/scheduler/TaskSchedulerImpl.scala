@@ -187,14 +187,20 @@ private[spark] class TaskSchedulerImpl(
     waitBackendReady()
   }
 
+  /**
+    * TaskScheduler 提交任务入口
+    * @param taskSet
+    */
   override def submitTasks(taskSet: TaskSet) {
     val tasks = taskSet.tasks
     logInfo("Adding task set " + taskSet.id + " with " + tasks.length + " tasks")
     this.synchronized {
+      // 给每一个TaskSet创建Manager，负责TaskSet任务执行情况监视和管理
       val manager = createTaskSetManager(taskSet, maxTaskFailures)
       val stage = taskSet.stageId
       val stageTaskSets =
         taskSetsByStageIdAndAttempt.getOrElseUpdate(stage, new HashMap[Int, TaskSetManager])
+      // 加入缓存
       stageTaskSets(taskSet.stageAttemptId) = manager
       val conflictingTaskSet = stageTaskSets.exists { case (_, ts) =>
         ts.taskSet != taskSet && !ts.isZombie
@@ -203,6 +209,7 @@ private[spark] class TaskSchedulerImpl(
         throw new IllegalStateException(s"more than one active taskSet for stage $stage:" +
           s" ${stageTaskSets.toSeq.map{_._2.taskSet.id}.mkString(",")}")
       }
+      // 将tasks按调度策略加入rootpool中
       schedulableBuilder.addTaskSetManager(manager, manager.taskSet.properties)
 
       if (!isLocal && !hasReceivedTask) {
@@ -220,6 +227,8 @@ private[spark] class TaskSchedulerImpl(
       }
       hasReceivedTask = true
     }
+    // 创建TaskScheduler时，创建一个StandaloneBackEnd就是这个backend
+    // 也被负责向Master注册App
     backend.reviveOffers()
   }
 
@@ -291,9 +300,12 @@ private[spark] class TaskSchedulerImpl(
     for (i <- 0 until shuffledOffers.size) {
       val execId = shuffledOffers(i).executorId
       val host = shuffledOffers(i).host
+      // 如果CPU数量大于等于当前task要使用的CPU数量
       if (availableCpus(i) >= CPUS_PER_TASK) {
         try {
+          // 调用taskSet的resourceOffer方法找到在这个Executor上用这种本地化级别那些taskset可以启动
           for (task <- taskSet.resourceOffer(execId, host, maxLocality)) {
+            // 给指定的Executor加上要启动的task
             tasks(i) += task
             val tid = task.taskId
             taskIdToTaskSetManager(tid) = taskSet
@@ -352,10 +364,13 @@ private[spark] class TaskSchedulerImpl(
       }
     }.getOrElse(offers)
 
+    // 打散可用的executors
     val shuffledOffers = shuffleOffers(filteredOffers)
     // Build a list of tasks to assign to each worker.
+    // 针对WorkerOffer创建出Task
     val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
     val availableCpus = shuffledOffers.map(o => o.cores).toArray
+    // 所有的TaskSets会在submit时放入调度池，取出排好队的Task
     val sortedTaskSets = rootPool.getSortedTaskSetQueue
     for (taskSet <- sortedTaskSets) {
       logDebug("parentName: %s, name: %s, runningTasks: %s".format(
@@ -368,11 +383,15 @@ private[spark] class TaskSchedulerImpl(
     // Take each TaskSet in our scheduling order, and then offer it each node in increasing order
     // of locality levels so that it gets a chance to launch local tasks on all of them.
     // NOTE: the preferredLocality order: PROCESS_LOCAL, NODE_LOCAL, NO_PREF, RACK_LOCAL, ANY
+    // 任务分配算法核心
+    // 遍历所有taskset和本地化级别（rdd与partition的关系）
     for (taskSet <- sortedTaskSets) {
       var launchedAnyTask = false
       var launchedTaskAtCurrentMaxLocality = false
       for (currentMaxLocality <- taskSet.myLocalityLevels) {
         do {
+          // 对每个taskSet从最好的本地化级别开始遍历
+          // 如果启动不了跳出放大本地化级别
           launchedTaskAtCurrentMaxLocality = resourceOfferSingleTaskSet(
             taskSet, currentMaxLocality, shuffledOffers, availableCpus, tasks)
           launchedAnyTask |= launchedTaskAtCurrentMaxLocality
