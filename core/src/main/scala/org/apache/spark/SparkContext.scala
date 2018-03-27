@@ -825,6 +825,8 @@ class SparkContext(config: SparkConf) extends Logging {
       path: String,
       minPartitions: Int = defaultMinPartitions): RDD[String] = withScope {
     assertNotStopped()
+    // 创建HadoopRDD，key是Offset， Value是文本行
+    // 把HadoopRDD 剔除key， 保留value， 获得MapPartionedRDD（文本行）
     hadoopFile(path, classOf[TextInputFormat], classOf[LongWritable], classOf[Text],
       minPartitions).map(pair => pair._2.toString).setName(path)
   }

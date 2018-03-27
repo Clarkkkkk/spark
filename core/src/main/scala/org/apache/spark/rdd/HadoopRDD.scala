@@ -205,6 +205,7 @@ class HadoopRDD[K, V](
     }
     val array = new Array[Partition](inputSplits.size)
     for (i <- 0 until inputSplits.size) {
+      // 每个block是一个partition
       array(i) = new HadoopPartition(id, i, inputSplits(i))
     }
     array
