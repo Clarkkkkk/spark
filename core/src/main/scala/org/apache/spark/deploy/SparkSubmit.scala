@@ -866,6 +866,7 @@ object SparkSubmit extends CommandLineUtils with Logging {
         System.exit(CLASS_NOT_FOUND_EXIT_STATUS)
     }
 
+    // 客户端新建SparkApplication
     val app: SparkApplication = if (classOf[SparkApplication].isAssignableFrom(mainClass)) {
       mainClass.newInstance().asInstanceOf[SparkApplication]
     } else {
@@ -887,6 +888,7 @@ object SparkSubmit extends CommandLineUtils with Logging {
     }
 
     try {
+      // 准备RPC环境并启动ClientApp
       app.start(childArgs.toArray, sparkConf)
     } catch {
       case t: Throwable =>

@@ -439,10 +439,13 @@ private[deploy] class Master(
         context.reply(SubmitDriverResponse(self, false, None, msg))
       } else {
         logInfo("Driver submitted " + description.command.mainClass)
+        // 接收到ClientApp提交Driver的信息后启动新建了包含Driver信息的DriverInfo
         val driver = createDriver(description)
+        // 持久化和加入内存缓存
         persistenceEngine.addDriver(driver)
         waitingDrivers += driver
         drivers.add(driver)
+        // 触发调度，详细参考Driver调度机制
         schedule()
 
         // TODO: It might be good to instead have the submission client poll the master to determine

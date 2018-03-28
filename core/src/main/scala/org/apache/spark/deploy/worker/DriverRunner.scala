@@ -194,6 +194,7 @@ private[deploy] class DriverRunner(
     // TODO: If we add ability to submit multiple jars they should also be added here
     // 构建ProcessBuilder
     // 传入Driver启动命令和内存等
+    // 实际就是用户编写的应用程序
     val builder = CommandUtils.buildProcessBuilder(driverDesc.command, securityManager,
       driverDesc.mem, sparkHome.getAbsolutePath, substituteVariables)
 

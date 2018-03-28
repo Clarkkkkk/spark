@@ -93,6 +93,7 @@ private class ClientEndpoint(
           driverArgs.cores,
           driverArgs.supervise,
           command)
+        // 向Master发送RequestSubmitDriver消息并包含封装了Driver的信息
         asyncSendToMasterAndForwardReply[SubmitDriverResponse](
           RequestSubmitDriver(driverDescription))
 
@@ -236,6 +237,7 @@ private[spark] class ClientApp extends SparkApplication {
 
     val masterEndpoints = driverArgs.masters.map(RpcAddress.fromSparkURL).
       map(rpcEnv.setupEndpointRef(_, Master.ENDPOINT_NAME))
+    // 新建ClientEndpoint会触发它的onStart方法
     rpcEnv.setupEndpoint("client", new ClientEndpoint(rpcEnv, driverArgs, masterEndpoints, conf))
 
     rpcEnv.awaitTermination()
