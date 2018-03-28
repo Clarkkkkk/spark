@@ -172,8 +172,11 @@ private[spark] class Executor(
   private[executor] def numRunningTasks: Int = runningTasks.size()
 
   def launchTask(context: ExecutorBackend, taskDescription: TaskDescription): Unit = {
+    // 对每个task建一个taskRunner
     val tr = new TaskRunner(context, taskDescription)
+    // 放入内存缓存
     runningTasks.put(taskDescription.taskId, tr)
+    // 丢入线程池(排队机制)
     threadPool.execute(tr)
   }
 

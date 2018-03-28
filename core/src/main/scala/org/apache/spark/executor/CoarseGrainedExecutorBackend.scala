@@ -37,6 +37,8 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages._
 import org.apache.spark.serializer.SerializerInstance
 import org.apache.spark.util.{ThreadUtils, Utils}
 
+// CoarseGrainedExecutorBackend 进程
+// 创建Executor对象
 private[spark] class CoarseGrainedExecutorBackend(
     override val rpcEnv: RpcEnv,
     driverUrl: String,
@@ -55,11 +57,13 @@ private[spark] class CoarseGrainedExecutorBackend(
   // to be changed so that we don't share the serializer instance across threads
   private[this] val ser: SerializerInstance = env.closureSerializer.newInstance()
 
+  // Worker启动的进程就是CoarseGrainedExecutorBackend，
   override def onStart() {
     logInfo("Connecting to driver: " + driverUrl)
     rpcEnv.asyncSetupEndpointRefByURI(driverUrl).flatMap { ref =>
       // This is a very fast action so we can use "ThreadUtils.sameThread"
       driver = Some(ref)
+      // 向Driver发送RegisterExecutor注册
       ref.ask[Boolean](RegisterExecutor(executorId, self, hostname, cores, extractLogUrls))
     }(ThreadUtils.sameThread).onComplete {
       // This is a very fast action so we can use "ThreadUtils.sameThread"
@@ -78,8 +82,11 @@ private[spark] class CoarseGrainedExecutorBackend(
 
   override def receive: PartialFunction[Any, Unit] = {
     case RegisteredExecutor =>
+      // 接收到Driver(CoarseGrainedSchedulerBackend)的确认注册信息
       logInfo("Successfully registered with driver")
       try {
+        // executor为CoarseGrainedExecutorBackend的执行句柄
+        // 大部分功能由Executor实现
         executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
       } catch {
         case NonFatal(e) =>
@@ -90,11 +97,14 @@ private[spark] class CoarseGrainedExecutorBackend(
       exitExecutor(1, "Slave registration failed: " + message)
 
     case LaunchTask(data) =>
+      // 启动task
       if (executor == null) {
         exitExecutor(1, "Received LaunchTask command but executor was null")
       } else {
+        // 反序列化
         val taskDesc = TaskDescription.decode(data.value)
         logInfo("Got assigned task " + taskDesc.taskId)
+        // 用Executor启动task
         executor.launchTask(this, taskDesc)
       }
 
