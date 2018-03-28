@@ -170,7 +170,7 @@ private[spark] class TaskSchedulerImpl(
   def newTaskId(): Long = nextTaskId.getAndIncrement()
 
   override def start() {
-    //
+    // StandaloneSchedulerBackend(CoarseGrainedSchedulerBackend子类，后者负责Driver端的消息接收
     backend.start()
 
     if (!isLocal && conf.getBoolean("spark.speculation", false)) {
