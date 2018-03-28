@@ -34,6 +34,11 @@ private[spark] class MapPartitionsRDD[U: ClassTag, T: ClassTag](
 
   override def getPartitions: Array[Partition] = firstParent[T].partitions
 
+  /**
+    * compute就是针对RDD的某个partition执行RDD定义的算子和函数
+    * f就相当于自己定义的算子和函数，是经过Spark内部封装还有实现其他逻辑
+    * 返回新的RDD的partition的数据
+    */
   override def compute(split: Partition, context: TaskContext): Iterator[U] =
     f(context, split.index, firstParent[T].iterator(split, context))
 

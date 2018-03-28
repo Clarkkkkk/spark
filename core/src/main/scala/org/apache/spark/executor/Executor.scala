@@ -312,7 +312,9 @@ private[spark] class Executor(
         // requires access to properties contained within (e.g. for access control).
         Executor.taskDeserializationProps.set(taskDescription.properties)
 
+        // 将缺失的依赖拷贝过来
         updateDependencies(taskDescription.addedFiles, taskDescription.addedJars)
+        // 反序列化任务
         task = ser.deserialize[Task[Any]](
           taskDescription.serializedTask, Thread.currentThread.getContextClassLoader)
         task.localProperties = taskDescription.properties
@@ -339,12 +341,17 @@ private[spark] class Executor(
         }
 
         // Run the actual task and measure its runtime.
+        // Task开始时间
         taskStart = System.currentTimeMillis()
         taskStartCpu = if (threadMXBean.isCurrentThreadCpuTimeSupported) {
           threadMXBean.getCurrentThreadCpuTime
         } else 0L
         var threwException = true
         val value = try {
+          // 调用Task run() 启动task
+          // 实际返回值对ShuffleMapTask来说就是MapStatus, 封装了数据输出的位置
+          // 如果后续还是ShuffleMapTask，就会通过MapOutputTracker去获取上一个ShuffleMapTask输出位置并拉取数据
+          // ResultTask也一样
           val res = task.run(
             taskAttemptId = taskId,
             attemptNumber = taskDescription.attemptNumber,
@@ -383,6 +390,7 @@ private[spark] class Executor(
             s"unrecoverable fetch failures!  Most likely this means user code is incorrectly " +
             s"swallowing Spark's internal ${classOf[FetchFailedException]}", fetchFailure)
         }
+        // Task结束时间
         val taskFinish = System.currentTimeMillis()
         val taskFinishCpu = if (threadMXBean.isCurrentThreadCpuTimeSupported) {
           threadMXBean.getCurrentThreadCpuTime
@@ -391,11 +399,14 @@ private[spark] class Executor(
         // If the task has been killed, let's fail it.
         task.context.killTaskIfInterrupted()
 
+        // 对MapStatus做序列化和封装，发送给Driver
         val resultSer = env.serializer.newInstance()
         val beforeSerialization = System.currentTimeMillis()
         val valueBytes = resultSer.serialize(value)
         val afterSerialization = System.currentTimeMillis()
 
+        // 计算出的Task相关的metrics
+        // 运行时间，反序列化时间，GC时间，结果序列化时间，显示在SparkUI上
         // Deserialization happens in two parts: first, we deserialize a Task object, which
         // includes the Partition. Second, Task.run() deserializes the RDD and function to be run.
         task.metrics.setExecutorDeserializeTime(
@@ -480,6 +491,8 @@ private[spark] class Executor(
         }
 
         setTaskFinishedAndClearInterruptStatus()
+        // 调用了CoraseGrainedExecutorBackend的statusUpdate方法
+        // 通知task运行结束
         execBackend.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
 
       } catch {
@@ -739,10 +752,14 @@ private[spark] class Executor(
   private def updateDependencies(newFiles: Map[String, Long], newJars: Map[String, Long]) {
     lazy val hadoopConf = SparkHadoopUtil.get.newConfiguration(conf)
     synchronized {
+      // Task是Java线程，运行在CoarseGrainedExecutorBackend进程中并发运行
+      // synchronized防止并发访问安全问题
+      // 访问了currentFiles，currentJars等共享资源
       // Fetch missing dependencies
       for ((name, timestamp) <- newFiles if currentFiles.getOrElse(name, -1L) < timestamp) {
         logInfo("Fetching " + name + " with timestamp " + timestamp)
         // Fetch file with useCache mode, close cache for local mode.
+        // 远程拉取文件
         Utils.fetchFile(name, new File(SparkFiles.getRootDirectory()), conf,
           env.securityManager, hadoopConf, timestamp, useCache = !isLocal)
         currentFiles(name) = timestamp
@@ -752,6 +769,8 @@ private[spark] class Executor(
         val currentTimeStamp = currentJars.get(name)
           .orElse(currentJars.get(localName))
           .getOrElse(-1L)
+        // 要求当前时间戳小于目标时间戳
+        // 拉取jar包
         if (currentTimeStamp < timestamp) {
           logInfo("Fetching " + name + " with timestamp " + timestamp)
           // Fetch file with useCache mode, close cache for local mode.

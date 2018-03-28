@@ -77,6 +77,9 @@ private[spark] abstract class Task[T](
       attemptNumber: Int,
       metricsSystem: MetricsSystem): T = {
     SparkEnv.get.blockManager.registerTask(taskAttemptId)
+    // Task执行上下文
+    // 记录Task全局性的数据
+    // Task重试次数，哪个stage，rdd的哪个partition
     context = new TaskContextImpl(
       stageId,
       stageAttemptId, // stageAttemptId and stageAttemptNumber are semantically equal
@@ -87,6 +90,7 @@ private[spark] abstract class Task[T](
       localProperties,
       metricsSystem,
       metrics)
+    // 设置ThreadLocal的TaskContext
     TaskContext.setTaskContext(context)
     taskThread = Thread.currentThread()
 
@@ -106,6 +110,8 @@ private[spark] abstract class Task[T](
       Option(attemptNumber)).setCurrentContext()
 
     try {
+      // 调用抽象方法runTask
+      // 实际返回值对ShuffleMapTask来说就是MapStatus
       runTask(context)
     } catch {
       case e: Throwable =>
@@ -153,6 +159,11 @@ private[spark] abstract class Task[T](
     this.taskMemoryManager = taskMemoryManager
   }
 
+  /**
+    * 抽象方法，这个类只是一个模板类，或者抽象父类
+    * 封装了子类通用的数据和操作
+    * 关键操作依赖于子类ShuffleMapTask，ResultTask，运行它们的算子方法
+    */
   def runTask(context: TaskContext): T
 
   def preferredLocations: Seq[TaskLocation] = Nil

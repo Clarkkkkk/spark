@@ -285,6 +285,7 @@ abstract class RDD[T: ClassTag](
     if (storageLevel != StorageLevel.NONE) {
       getOrCompute(split, context)
     } else {
+      // 进行rdd partition的计算
       computeOrReadCheckpoint(split, context)
     }
   }
