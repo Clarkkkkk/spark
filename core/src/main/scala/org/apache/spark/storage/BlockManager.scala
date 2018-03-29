@@ -113,6 +113,7 @@ private[spark] class ByteBufferBlockData(
  *
  * Note that [[initialize()]] must be called before the BlockManager is usable.
  */
+// 运行在每个节点上，driver和executor都有一份，提供远程存取功能，支持内存，磁盘，堆外存储
 private[spark] class BlockManager(
     executorId: String,
     rpcEnv: RpcEnv,
@@ -144,8 +145,10 @@ private[spark] class BlockManager(
     ThreadUtils.newDaemonCachedThreadPool("block-manager-future", 128))
 
   // Actual storage of where blocks are kept
+  // 负责内存相关读写操作
   private[spark] val memoryStore =
     new MemoryStore(conf, blockInfoManager, serializerManager, memoryManager, this)
+  // 负责磁盘相关读写操作
   private[spark] val diskStore = new DiskStore(conf, diskBlockManager, securityManager)
   memoryManager.setMemoryStore(memoryStore)
 
@@ -223,6 +226,7 @@ private[spark] class BlockManager(
    * service if configured.
    */
   def initialize(appId: String): Unit = {
+    // 通过blockTransferService进行远程数据传输
     blockTransferService.init(this)
     shuffleClient.init(appId)
 
@@ -235,9 +239,11 @@ private[spark] class BlockManager(
       ret
     }
 
+    // 创建唯一的BlockMangerId，关联ExecutorId, blockTransferService的地址
     val id =
       BlockManagerId(executorId, blockTransferService.hostName, blockTransferService.port, None)
 
+    // 注册BlockManger，发送消息到BlockMangerMasterEndpoint
     val idFromMaster = master.registerBlockManager(
       id,
       maxOnHeapMemory,
@@ -688,6 +694,7 @@ private[spark] class BlockManager(
       val loc = locationIterator.next()
       logDebug(s"Getting remote block $blockId from $loc")
       val data = try {
+        // 通过blockTransferService远程获取
         blockTransferService.fetchBlockSync(
           loc.host, loc.port, loc.executorId, blockId.toString, tempFileManager).nioByteBuffer()
       } catch {

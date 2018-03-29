@@ -97,6 +97,7 @@ private[spark] class DiskStore(
   }
 
   def getBytes(blockId: BlockId): BlockData = {
+    // diskIO
     val file = diskManager.getFile(blockId.name)
     val blockSize = getSize(blockId)
 

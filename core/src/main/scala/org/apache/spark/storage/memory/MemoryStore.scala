@@ -88,6 +88,7 @@ private[spark] class MemoryStore(
   // Note: all changes to memory allocations, notably putting blocks, evicting blocks, and
   // acquiring or releasing unroll memory, must be synchronized on `memoryManager`!
 
+  // 里面存放着每个Block的真实的内存中的数据
   private val entries = new LinkedHashMap[BlockId, MemoryEntry[_]](32, 0.75f, true)
 
   // A mapping from taskAttemptId to amount of memory used for unrolling a block (in bytes)
@@ -363,7 +364,9 @@ private[spark] class MemoryStore(
   }
 
   def getBytes(blockId: BlockId): Option[ChunkedByteBuffer] = {
+    // 对entry的访问是同步的
     val entry = entries.synchronized { entries.get(blockId) }
+    // 一定要是序列化的
     entry match {
       case null => None
       case e: DeserializedMemoryEntry[_] =>
@@ -374,6 +377,7 @@ private[spark] class MemoryStore(
 
   def getValues(blockId: BlockId): Option[Iterator[_]] = {
     val entry = entries.synchronized { entries.get(blockId) }
+    // 一定要是非序列化的
     entry match {
       case null => None
       case e: SerializedMemoryEntry[_] =>
