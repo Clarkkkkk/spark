@@ -469,6 +469,7 @@ private[spark] class Executor(
         val resultSize = serializedDirectResult.limit()
 
         // directSend = sending directly back to the driver
+        // 将计算结果序列化，发送给Driver
         val serializedResult: ByteBuffer = {
           if (maxResultSize > 0 && resultSize > maxResultSize) {
             logWarning(s"Finished $taskName (TID $taskId). Result is larger than maxResultSize " +
@@ -477,6 +478,8 @@ private[spark] class Executor(
             ser.serialize(new IndirectTaskResult[Any](TaskResultBlockId(taskId), resultSize))
           } else if (resultSize > maxDirectResultSize) {
             val blockId = TaskResultBlockId(taskId)
+            // 使用Block模式，调用putBytes(核心是doPutBytes)
+            // 根据存储级别和是否序列化使用memstore和diskstore不同方法进行储存
             env.blockManager.putBytes(
               blockId,
               new ChunkedByteBuffer(serializedDirectResult.duplicate()),
@@ -492,7 +495,7 @@ private[spark] class Executor(
 
         setTaskFinishedAndClearInterruptStatus()
         // 调用了CoraseGrainedExecutorBackend的statusUpdate方法
-        // 通知task运行结束
+        // 通知driver task运行结束，并将结果发送过去
         execBackend.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
 
       } catch {

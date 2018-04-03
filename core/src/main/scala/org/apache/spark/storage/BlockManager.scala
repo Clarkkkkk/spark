@@ -926,10 +926,11 @@ private[spark] class BlockManager(
       }
 
       val size = bytes.size
-
+      // 存储级别
       if (level.useMemory) {
         // Put it in memory first, even if it also has useDisk set to true;
         // We will drop it to disk later if the memory store can't hold it.
+        // 是否序列化
         val putSucceeded = if (level.deserialized) {
           val values =
             serializerManager.dataDeserializeStream(blockId, bytes.toInputStream())(classTag)
@@ -943,6 +944,7 @@ private[spark] class BlockManager(
           }
         } else {
           val memoryMode = level.memoryMode
+          // 使用memstore存储
           memoryStore.putBytes(blockId, size, memoryMode, () => {
             if (memoryMode == MemoryMode.OFF_HEAP &&
                 bytes.chunks.exists(buffer => !buffer.isDirect)) {
@@ -967,6 +969,7 @@ private[spark] class BlockManager(
         // tell the master about it.
         info.size = size
         if (tellMaster && info.tellMaster) {
+          // 将block状态汇报给Driver
           reportBlockStatus(blockId, putBlockStatus)
         }
         addUpdatedBlockStatusToTaskMetrics(blockId, putBlockStatus)

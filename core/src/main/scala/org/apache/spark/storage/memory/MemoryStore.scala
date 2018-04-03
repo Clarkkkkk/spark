@@ -146,8 +146,11 @@ private[spark] class MemoryStore(
       memoryMode: MemoryMode,
       _bytes: () => ChunkedByteBuffer): Boolean = {
     require(!contains(blockId), s"Block $blockId is already present in the MemoryStore")
+    // 通过memoryManager申请内存
+    // memoryManger有StaticMemoryManager和UnifiedMemoryManger，前者是按比例分配计算和存储，后者是动态的
     if (memoryManager.acquireStorageMemory(blockId, size, memoryMode)) {
       // We acquired enough memory for the block, so go ahead and put it
+      // 申请到内存后保存blockId和序列化后的Entry的键值对到entries(保存Block的真实数据)中
       val bytes = _bytes()
       assert(bytes.size == size)
       val entry = new SerializedMemoryEntry[T](bytes, memoryMode, implicitly[ClassTag[T]])
