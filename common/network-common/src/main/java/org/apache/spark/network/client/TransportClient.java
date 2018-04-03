@@ -139,6 +139,7 @@ public class TransportClient implements Closeable {
     }
 
     StreamChunkId streamChunkId = new StreamChunkId(streamId, chunkIndex);
+    // 将FetchRequest交给TransportResponseHandler处理
     handler.addFetchRequest(streamChunkId, callback);
 
     channel.writeAndFlush(new ChunkFetchRequest(streamChunkId)).addListener(future -> {

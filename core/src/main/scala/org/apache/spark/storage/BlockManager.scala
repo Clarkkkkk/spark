@@ -672,6 +672,7 @@ private[spark] class BlockManager(
 
     // Because all the remote blocks are registered in driver, it is not necessary to ask
     // all the slave executors to get block status.
+    // 通过BlockId找到对应数据的存储位置
     val locationsAndStatus = master.getLocationsAndStatus(blockId)
     val blockSize = locationsAndStatus.map { b =>
       b.status.diskSize.max(b.status.memSize)

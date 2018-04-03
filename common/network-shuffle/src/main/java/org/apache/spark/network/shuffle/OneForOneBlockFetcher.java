@@ -81,6 +81,7 @@ public class OneForOneBlockFetcher {
       TransportConf transportConf,
       TempFileManager tempFileManager) {
     this.client = client;
+    // 封装OpenBlockMessage
     this.openMessage = new OpenBlocks(appId, execId, blockIds);
     this.blockIds = blockIds;
     this.listener = listener;
@@ -115,6 +116,7 @@ public class OneForOneBlockFetcher {
       throw new IllegalArgumentException("Zero-sized blockIds array");
     }
 
+    // 发送openMessage
     client.sendRpc(openMessage.toByteBuffer(), new RpcResponseCallback() {
       @Override
       public void onSuccess(ByteBuffer response) {
@@ -125,6 +127,7 @@ public class OneForOneBlockFetcher {
           // Immediately request all chunks -- we expect that the total size of the request is
           // reasonable due to higher level chunking in [[ShuffleBlockFetcherIterator]].
           for (int i = 0; i < streamHandle.numChunks; i++) {
+            // 获取StreamId等信息, 启动fetchChunk一次获取每块数据
             if (tempFileManager != null) {
               client.stream(OneForOneStreamManager.genStreamChunkId(streamHandle.streamId, i),
                 new DownloadCallback(i));

@@ -55,12 +55,15 @@ class NettyBlockRpcServer(
     logTrace(s"Received request: $message")
 
     message match {
+      // blockManager 端就收到OpenBlocks消息后根据blockId获取相应数据
+      // 通过streamManager将StreamId绑到blocks上
       case openBlocks: OpenBlocks =>
         val blocksNum = openBlocks.blockIds.length
         val blocks = for (i <- (0 until blocksNum).view)
           yield blockManager.getBlockData(BlockId.apply(openBlocks.blockIds(i)))
         val streamId = streamManager.registerStream(appId, blocks.iterator.asJava)
         logTrace(s"Registered streamId $streamId with $blocksNum buffers")
+        // 将包含StreamId的消息返回
         responseContext.onSuccess(new StreamHandle(streamId, blocksNum).toByteBuffer)
 
       case uploadBlock: UploadBlock =>

@@ -118,6 +118,7 @@ public class TransportRequestHandler extends MessageHandler<RequestMessage> {
     }
   }
 
+  // 根据StreamId和ChunkIndex获取对应数据
   private void processFetchRequest(final ChunkFetchRequest req) {
     if (logger.isTraceEnabled()) {
       logger.trace("Received req from {} to fetch block {}", getRemoteAddress(channel),
