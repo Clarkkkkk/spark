@@ -26,6 +26,7 @@ import org.apache.spark.unsafe.types.UTF8String
  * An abstract class for row used internally in Spark SQL, which only contains the columns as
  * internal types.
  */
+// 只能包含内部类型
 abstract class InternalRow extends SpecializedGetters with Serializable {
 
   def numFields: Int

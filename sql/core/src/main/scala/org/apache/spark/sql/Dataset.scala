@@ -162,6 +162,9 @@ private[sql] object Dataset {
  *
  * @since 1.6.0
  */
+// sparkSession(入口)
+// queryExecution(数据和执行逻辑信息)
+// Encoder(编码信息)
 @InterfaceStability.Stable
 class Dataset[T] private[sql](
     @transient val sparkSession: SparkSession,
@@ -173,7 +176,7 @@ class Dataset[T] private[sql](
 
   // Note for Spark contributors: if adding or updating any action in `Dataset`, please make sure
   // you wrap it with `withNewExecutionId` if this actions doesn't call other action.
-
+  // 执行LogicalPlan
   def this(sparkSession: SparkSession, logicalPlan: LogicalPlan, encoder: Encoder[T]) = {
     this(sparkSession, sparkSession.sessionState.executePlan(logicalPlan), encoder)
   }

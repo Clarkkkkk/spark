@@ -463,9 +463,14 @@ class SparkSession private(
   @Experimental
   @InterfaceStability.Evolving
   def createDataset[T : Encoder](data: Seq[T]): Dataset[T] = {
+    // 检查编码是否支持
     val enc = encoderFor[T]
+    // 提取类型信息(包含位置信息)
     val attributes = enc.schema.toAttributes
+    // 提取转化为Seq[InternalRow]
     val encoded = data.map(d => enc.toRow(d).copy())
+    // 默认isStreaming: Boolean = false
+    // 生成Logical Plan
     val plan = new LocalRelation(attributes, encoded)
     Dataset[T](self, plan)
   }
@@ -482,6 +487,7 @@ class SparkSession private(
   @Experimental
   @InterfaceStability.Evolving
   def createDataset[T : Encoder](data: RDD[T]): Dataset[T] = {
+    // 针对外部RDD生成LogicalPlan
     Dataset[T](self, ExternalRDD(data, self))
   }
 
@@ -561,6 +567,7 @@ class SparkSession private(
   /**
    * Creates a `DataFrame` from an `RDD[InternalRow]`.
    */
+  // 从RDD of Internal(Catalyst)Row创建
   private[sql] def internalCreateDataFrame(
       catalystRows: RDD[InternalRow],
       schema: StructType,
@@ -578,6 +585,7 @@ class SparkSession private(
    * Creates a `DataFrame` from an `RDD[Row]`.
    * User can specify whether the input rows should be converted to Catalyst rows.
    */
+  // 从普通RDD创建，转化为Internal(Catalyst) Row
   private[sql] def createDataFrame(
       rowRDD: RDD[Row],
       schema: StructType,
