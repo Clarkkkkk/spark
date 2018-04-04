@@ -62,6 +62,7 @@ import org.apache.spark.util.Utils
 
 private[sql] object Dataset {
   def apply[T: Encoder](sparkSession: SparkSession, logicalPlan: LogicalPlan): Dataset[T] = {
+    // 在createDataSet中被调用
     val dataset = new Dataset(sparkSession, logicalPlan, implicitly[Encoder[T]])
     // Eagerly bind the encoder so we verify that the encoder matches the underlying
     // schema. The user will get an error if this is not the case.
@@ -69,6 +70,7 @@ private[sql] object Dataset {
     dataset
   }
 
+  // 很多转换会触发该方法对plan进行优化
   def ofRows(sparkSession: SparkSession, logicalPlan: LogicalPlan): DataFrame = {
     val qe = sparkSession.sessionState.executePlan(logicalPlan)
     qe.assertAnalyzed()
@@ -172,6 +174,7 @@ class Dataset[T] private[sql](
     encoder: Encoder[T])
   extends Serializable {
 
+  // 调用analyzer,启动优化
   queryExecution.assertAnalyzed()
 
   // Note for Spark contributors: if adding or updating any action in `Dataset`, please make sure

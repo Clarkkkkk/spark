@@ -99,10 +99,12 @@ class Analyzer(
     this(catalog, conf, conf.optimizerMaxIterations)
   }
 
+  // 执行并检查优化
   def executeAndCheck(plan: LogicalPlan): LogicalPlan = {
     val analyzed = execute(plan)
     try {
       checkAnalysis(analyzed)
+      // 解除AnalysisBarrier
       EliminateBarriers(analyzed)
     } catch {
       case e: AnalysisException =>
@@ -121,6 +123,7 @@ class Analyzer(
     }
   }
 
+  // 执行优化，获取优化后的Plan
   private def executeSameContext(plan: LogicalPlan): LogicalPlan = super.execute(plan)
 
   def resolver: Resolver = conf.resolver

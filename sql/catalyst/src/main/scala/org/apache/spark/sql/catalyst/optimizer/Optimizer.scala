@@ -46,6 +46,7 @@ abstract class Optimizer(sessionCatalog: SessionCatalog)
 
   protected def fixedPoint = FixedPoint(SQLConf.get.optimizerMaxIterations)
 
+  // 基于规则和代价的优化规则
   def batches: Seq[Batch] = {
     val operatorOptimizationRuleSet =
       Seq(

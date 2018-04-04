@@ -44,6 +44,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
   // TODO: Move the planner an optimizer into here from SessionState.
   protected def planner = sparkSession.sessionState.planner
 
+  // 触发lazy val analyzed 优化
   def assertAnalyzed(): Unit = analyzed
 
   def assertSupported(): Unit = {
