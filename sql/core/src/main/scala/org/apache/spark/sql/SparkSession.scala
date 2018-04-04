@@ -132,12 +132,14 @@ class SparkSession private(
    *
    * @since 2.2.0
    */
+  // 懒加载的sessionState，保存配置信息
   @InterfaceStability.Unstable
   @transient
   lazy val sessionState: SessionState = {
     parentSessionState
       .map(_.clone(this))
       .getOrElse {
+        // 初始化SessionState
         val state = SparkSession.instantiateSessionState(
           SparkSession.sessionStateClassName(sparkContext.conf),
           self)
@@ -642,6 +644,7 @@ class SparkSession private(
    *
    * @since 2.0.0
    */
+  // 直接使用SQL语句，会调用解析器
   def sql(sqlText: String): DataFrame = {
     Dataset.ofRows(self, sessionState.sqlParser.parsePlan(sqlText))
   }
@@ -656,6 +659,7 @@ class SparkSession private(
    *
    * @since 2.0.0
    */
+  // 返回用于加载non-streaming data 的DataFrameReader
   def read: DataFrameReader = new DataFrameReader(self)
 
   /**
@@ -668,6 +672,7 @@ class SparkSession private(
    * @since 2.0.0
    */
   @InterfaceStability.Evolving
+  // 返回用于加载streaming data 的DataFrameReader
   def readStream: DataStreamReader = new DataStreamReader(self)
 
   /**
@@ -781,6 +786,7 @@ object SparkSession {
 
     private[this] val options = new scala.collection.mutable.HashMap[String, String]
 
+    // 保存用户自定义的Analyzer rules, Optimizer rules, Planning Strategies or a customized parser
     private[this] val extensions = new SparkSessionExtensions
 
     private[this] var userSuppliedContext: Option[SparkContext] = None
@@ -796,6 +802,7 @@ object SparkSession {
      *
      * @since 2.0.0
      */
+    // 设置应用名，显示在SparkUI上
     def appName(name: String): Builder = config("spark.app.name", name)
 
     /**
@@ -804,6 +811,7 @@ object SparkSession {
      *
      * @since 2.0.0
      */
+    // 同时将设置加入SparkConf和SparkSession的Configuration
     def config(key: String, value: String): Builder = synchronized {
       options += key -> value
       this
@@ -904,8 +912,10 @@ object SparkSession {
      */
     def getOrCreate(): SparkSession = synchronized {
       // Get the session from current thread's active session.
+      // A threadLocal SparkSession
       var session = activeThreadSession.get()
       if ((session ne null) && !session.sparkContext.isStopped) {
+        // 如果已存在就更新
         options.foreach { case (k, v) => session.sessionState.conf.setConfString(k, v) }
         if (options.nonEmpty) {
           logWarning("Using an existing SparkSession; some configuration may not take effect.")
@@ -916,6 +926,7 @@ object SparkSession {
       // Global synchronization so we will only set the default session once.
       SparkSession.synchronized {
         // If the current thread does not have an active session, get it from the global session.
+        // 获取Root SparkSession
         session = defaultSession.get()
         if ((session ne null) && !session.sparkContext.isStopped) {
           options.foreach { case (k, v) => session.sessionState.conf.setConfString(k, v) }
@@ -927,6 +938,7 @@ object SparkSession {
 
         // No active nor global default session. Create a new one.
         val sparkContext = userSuppliedContext.getOrElse {
+          // 封装配置
           val sparkConf = new SparkConf()
           options.foreach { case (k, v) => sparkConf.set(k, v) }
 
@@ -934,12 +946,13 @@ object SparkSession {
           if (!sparkConf.contains("spark.app.name")) {
             sparkConf.setAppName(java.util.UUID.randomUUID().toString)
           }
-
+          // 获得SparkContext
           SparkContext.getOrCreate(sparkConf)
           // Do not update `SparkConf` for existing `SparkContext`, as it's shared by all sessions.
         }
 
         // Initialize extensions if the user has defined a configurator class.
+        // 初始化扩展件
         val extensionConfOption = sparkContext.conf.get(StaticSQLConf.SPARK_SESSION_EXTENSIONS)
         if (extensionConfOption.isDefined) {
           val extensionConfClassName = extensionConfOption.get
@@ -957,6 +970,7 @@ object SparkSession {
           }
         }
 
+        // 新建SparkSession
         session = new SparkSession(sparkContext, None, None, extensions)
         options.foreach { case (k, v) => session.initialSessionOptions.put(k, v) }
         defaultSession.set(session)
@@ -980,6 +994,7 @@ object SparkSession {
    *
    * @since 2.0.0
    */
+  // 返回一个新建的Builder对象用来构造SparkSession对象
   def builder(): Builder = new Builder
 
   /**

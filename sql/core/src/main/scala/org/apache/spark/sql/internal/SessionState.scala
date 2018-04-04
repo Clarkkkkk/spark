@@ -105,6 +105,9 @@ private[sql] class SessionState(
   //  Helper methods, partially leftover from pre-2.0 days
   // ------------------------------------------------------
 
+//  protected def createQueryExecution: LogicalPlan => QueryExecution = { plan =>
+//    new QueryExecution(session, plan)
+//  } 在BaseSessionStateBuilder中定义的createQueryExecution方法封装到SessionState中
   def executePlan(plan: LogicalPlan): QueryExecution = createQueryExecution(plan)
 
   def refreshTable(tableName: String): Unit = {

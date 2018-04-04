@@ -250,6 +250,7 @@ abstract class BaseSessionStateBuilder(
   /**
    * Create a query execution object.
    */
+  // createQueryExecution在这里被初始化,
   protected def createQueryExecution: LogicalPlan => QueryExecution = { plan =>
     new QueryExecution(session, plan)
   }
@@ -282,6 +283,8 @@ abstract class BaseSessionStateBuilder(
    * Build the [[SessionState]].
    */
   def build(): SessionState = {
+    // 构造SessionState
+    // 将createQueryExecution的方法封装进去
     new SessionState(
       session.sharedState,
       conf,
