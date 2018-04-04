@@ -2656,6 +2656,8 @@ class Dataset[T] private[sql](
    * @since 1.6.0
    */
   def foreach(f: T => Unit): Unit = withNewRDDExecutionId {
+    // rdd是一个lazy val， action触发转换
+    // dataset转换成rdd之后执行rdd的foreach
     rdd.foreach(f)
   }
 
@@ -2963,6 +2965,7 @@ class Dataset[T] private[sql](
 
   // Represents the `QueryExecution` used to produce the content of the Dataset as an `RDD`.
   @transient private lazy val rddQueryExecution: QueryExecution = {
+    // 用AnalysisBarrier包裹防止被二次处理
     val deserialized = CatalystSerde.deserialize[T](planWithBarrier)
     sparkSession.sessionState.executePlan(deserialized)
   }
@@ -2974,7 +2977,9 @@ class Dataset[T] private[sql](
    * @since 1.6.0
    */
   lazy val rdd: RDD[T] = {
+    // 触发了lazy val rddQueryExecution
     val objectType = exprEnc.deserializer.dataType
+    // 调用toRDD方法来触发QueryExecution的execute方法
     rddQueryExecution.toRdd.mapPartitions { rows =>
       rows.map(_.get(0, objectType).asInstanceOf[T])
     }

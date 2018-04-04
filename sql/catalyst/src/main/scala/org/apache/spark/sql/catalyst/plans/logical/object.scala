@@ -31,6 +31,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.util.Utils
 
 object CatalystSerde {
+  // 返回一个封装了反序列化过程的对象
   def deserialize[T : Encoder](child: LogicalPlan): DeserializeToObject = {
     val deserializer = UnresolvedDeserializer(encoderFor[T].deserializer)
     DeserializeToObject(deserializer, generateObjAttr[T], child)
