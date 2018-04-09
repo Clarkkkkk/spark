@@ -600,7 +600,9 @@ object DataSource extends Logging {
     "org.apache.spark.Logging")
 
   /** Given a provider name, look up the data source class definition. */
+  // 通过classLoader，根据source的名字获取source类
   def lookupDataSource(provider: String, conf: SQLConf): Class[_] = {
+    // 如果Map中存在对应的名称，转成CanonicalName
     val provider1 = backwardCompatibilityMap.getOrElse(provider, provider) match {
       case name if name.equalsIgnoreCase("orc") &&
           conf.getConf(SQLConf.ORC_IMPLEMENTATION) == "native" =>
@@ -612,11 +614,15 @@ object DataSource extends Logging {
     }
     val provider2 = s"$provider1.DefaultSource"
     val loader = Utils.getContextOrSparkClassLoader
+    /* 启动DataSourceRegister，所有支持的数据源都应该在DataSourceRegister中注册，该接口由DataSourceProvider实现
+     e.g. [KafkaSourceProvider]
+     */
     val serviceLoader = ServiceLoader.load(classOf[DataSourceRegister], loader)
 
     try {
       serviceLoader.asScala.filter(_.shortName().equalsIgnoreCase(provider1)).toList match {
         // the provider format did not match any given registered aliases
+        // 没有match的名字
         case Nil =>
           try {
             Try(loader.loadClass(provider1)).orElse(Try(loader.loadClass(provider2))) match {
@@ -654,6 +660,9 @@ object DataSource extends Logging {
               }
           }
         case head :: Nil =>
+          /*
+          只有一个match的source，直接返回这个Source的Provider， e.g. [TextSocketSourceProvider]
+           */
           // there is exactly one registered alias
           head.getClass
         case sources =>

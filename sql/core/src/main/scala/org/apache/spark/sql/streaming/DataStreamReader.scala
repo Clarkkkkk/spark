@@ -46,6 +46,8 @@ final class DataStreamReader private[sql](sparkSession: SparkSession) extends Lo
    *
    * @since 2.0.0
    */
+  // 通过SparkSession新建DataStreamReader后，使用format指定输入源
+  // e.g.: kafka
   def format(source: String): DataStreamReader = {
     this.source = source
     this
@@ -157,6 +159,7 @@ final class DataStreamReader private[sql](sparkSession: SparkSession) extends Lo
         "read files of Hive data source directly.")
     }
 
+    // source 就是provider的名字, 获取到sourceProvider，e.g. TextSocketSourceProvider
     val ds = DataSource.lookupDataSource(source, sparkSession.sqlContext.conf).newInstance()
     val options = new DataSourceOptions(extraOptions.asJava)
     // We need to generate the V1 data source so we can pass it to the V2 relation as a shim.
