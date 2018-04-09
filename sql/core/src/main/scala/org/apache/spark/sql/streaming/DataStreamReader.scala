@@ -175,9 +175,11 @@ final class DataStreamReader private[sql](sparkSession: SparkSession) extends Lo
       case _ => None
     }
     ds match {
+      // 如果Provider实现了MicroBatchReadSupport接口，e.g. TextSocketSourceProvider
       case s: MicroBatchReadSupport =>
         var tempReader: MicroBatchReader = null
         val schema = try {
+          // 调用SourceProvider的具体方法新建一个实现了MicroBatchReadSupport的MicroBatchReader
           tempReader = s.createMicroBatchReader(
             Optional.ofNullable(userSpecifiedSchema.orNull),
             Utils.createTempDir(namePrefix = s"temporaryReader").getCanonicalPath,
