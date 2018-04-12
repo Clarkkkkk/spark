@@ -336,6 +336,7 @@ case class DataSource(
    */
   def resolveRelation(checkFilesExist: Boolean = true): BaseRelation = {
     // 将DataSource转化成BaseRelation用于生生DataFrame
+    // 新建一个DataSource找到的具体FileFormat（e.g.JsonFileFormat)的instance
     val relation = (providingClass.newInstance(), userSpecifiedSchema) match {
       // TODO: Throw when too much is given.
       case (dataSource: SchemaRelationProvider, Some(schema)) =>
@@ -354,6 +355,7 @@ case class DataSource(
 
       // We are reading from the results of a streaming query. Load files from the metadata log
       // instead of listing them using HDFS APIs.
+      // 会先尝试从FileStreamSink中取metedata
       case (format: FileFormat, _)
           if FileStreamSink.hasMetadata(
             caseInsensitiveOptions.get("path").toSeq ++ paths,
