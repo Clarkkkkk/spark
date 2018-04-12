@@ -165,6 +165,7 @@ final class DataStreamReader private[sql](sparkSession: SparkSession) extends Lo
     // We need to generate the V1 data source so we can pass it to the V2 relation as a shim.
     // We can't be sure at this point whether we'll actually want to use V2, since we don't know the
     // writer or whether the query is continuous.
+    // 包含了SourceProvider类，端口，地址，SourceInfo（schema，partition等信息）
     val v1DataSource = DataSource(
       sparkSession,
       userSpecifiedSchema = userSpecifiedSchema,
@@ -194,6 +195,7 @@ final class DataStreamReader private[sql](sparkSession: SparkSession) extends Lo
         }
         Dataset.ofRows(
           sparkSession,
+          // 封装成LogicalPlan
           StreamingRelationV2(
             s, source, extraOptions.toMap,
             schema.toAttributes, v1Relation)(sparkSession))

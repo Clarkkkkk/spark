@@ -368,6 +368,7 @@ class MicroBatchExecution(
           val prevBatchOff = offsetLog.get(currentBatchId - 1)
           if (prevBatchOff.isDefined) {
             prevBatchOff.get.toStreamProgress(sources).foreach {
+              // 调用Source的Commit
               case (src: Source, off) => src.commit(off)
               case (reader: MicroBatchReader, off) =>
                 reader.commit(reader.deserializeOffset(off.json))

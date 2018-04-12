@@ -174,7 +174,8 @@ class Dataset[T] private[sql](
     encoder: Encoder[T])
   extends Serializable {
 
-  // 调用analyzer,启动优化
+  // 初始化过程中调用analyzer,启动优化
+  // QueryExecution中包含val logicalPlan，会调用logicalPlan的初始化
   queryExecution.assertAnalyzed()
 
   // Note for Spark contributors: if adding or updating any action in `Dataset`, please make sure
@@ -3124,6 +3125,7 @@ class Dataset[T] private[sql](
    * @since 2.0.0
    */
   @InterfaceStability.Evolving
+  // 生成DataStreamWriter
   def writeStream: DataStreamWriter[T] = {
     if (!isStreaming) {
       logicalPlan.failAnalysis(

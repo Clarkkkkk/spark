@@ -76,6 +76,7 @@ class TextSocketMicroBatchReader(options: DataSourceOptions) extends MicroBatchR
   @GuardedBy("this")
   private var lastOffsetCommitted: LongOffset = LongOffset(-1L)
 
+  // 调用初始化方法
   initialize()
 
   /** This method is only used for unit test */
@@ -86,6 +87,7 @@ class TextSocketMicroBatchReader(options: DataSourceOptions) extends MicroBatchR
   private def initialize(): Unit = synchronized {
     socket = new Socket(host, port)
     val reader = new BufferedReader(new InputStreamReader(socket.getInputStream))
+    // 启动线程接收Socket消息
     readThread = new Thread(s"TextSocketSource($host, $port)") {
       setDaemon(true)
 
@@ -247,6 +249,7 @@ class TextSocketSourceProvider extends DataSourceV2
       throw new AnalysisException("The socket source does not support a user-specified schema.")
     }
 
+    // 新建一个MicroBatchReader，constructor中会调用它的Initialize方法来启动线程接收消息
     new TextSocketMicroBatchReader(options)
   }
 
