@@ -207,6 +207,8 @@ class DataFrameReader private[sql](sparkSession: SparkSession) extends Logging {
 
   private def loadV1Source(paths: String*) = {
     // Code path for data source v1.
+    // V1Source的获取，将封装了Source类信息的DataSource转换成BaseRelation
+    // 再将BaseRelation转换成DataFrame
     sparkSession.baseRelationToDataFrame(
       DataSource.apply(
         sparkSession,

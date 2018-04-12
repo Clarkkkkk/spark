@@ -164,6 +164,8 @@ case class DataSource(
     val partitionSchema = if (partitionColumns.isEmpty) {
       // Try to infer partitioning, because no DataSource in the read path provides the partitioning
       // columns properly unless it is a Hive DataSource
+      // json 格式下就是默认的Empty
+      // 获取PartitionSchema
       combineInferredAndUserSpecifiedPartitionSchema(tempFileIndex)
     } else {
       // maintain old behavior before SPARK-18510. If userSpecifiedSchema is empty used inferred
@@ -333,6 +335,7 @@ case class DataSource(
    *                        that files already exist, we don't need to check them again.
    */
   def resolveRelation(checkFilesExist: Boolean = true): BaseRelation = {
+    // 将DataSource转化成BaseRelation用于生生DataFrame
     val relation = (providingClass.newInstance(), userSpecifiedSchema) match {
       // TODO: Throw when too much is given.
       case (dataSource: SchemaRelationProvider, Some(schema)) =>
@@ -383,12 +386,16 @@ case class DataSource(
           caseInsensitiveOptions)(sparkSession)
 
       // This is a non-streaming file based datasource.
+      // 非流式的DataSource， e.g. Json File on HDFS
       case (format: FileFormat, _) =>
+        // 获取路径
         val allPaths = caseInsensitiveOptions.get("path") ++ paths
         val hadoopConf = sparkSession.sessionState.newHadoopConf()
+        // 将路径拆分为数组
         val globbedPaths = allPaths.flatMap(
           DataSource.checkAndGlobPathIfNecessary(hadoopConf, _, checkFilesExist)).toArray
 
+        // 创建一个文件状态的共享缓存
         val fileStatusCache = FileStatusCache.getOrCreate(sparkSession)
         val (dataSchema, partitionSchema) = getOrInferFileFormatSchema(format, fileStatusCache)
 
@@ -400,10 +407,13 @@ case class DataSource(
             catalogTable.get,
             catalogTable.get.stats.map(_.sizeInBytes.toLong).getOrElse(defaultTableSize))
         } else {
+          // e.g. 读Json文件的目录信息
           new InMemoryFileIndex(
             sparkSession, globbedPaths, options, Some(partitionSchema), fileStatusCache)
         }
 
+        // 封装到Hadoop相关的relation中
+        // 包含了路径信息，partition schema信息，dataschema信息，文件类（e.g. JsonFileFormat)
         HadoopFsRelation(
           fileCatalog,
           partitionSchema = partitionSchema,
@@ -419,6 +429,7 @@ case class DataSource(
 
     relation match {
       case hs: HadoopFsRelation =>
+        // 检查Schema中重复的部分
         SchemaUtils.checkColumnNameDuplication(
           hs.dataSchema.map(_.name),
           "in the data schema",

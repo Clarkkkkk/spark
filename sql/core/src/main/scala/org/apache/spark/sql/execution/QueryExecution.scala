@@ -55,6 +55,7 @@ class QueryExecution(val sparkSession: SparkSession, val logical: LogicalPlan) {
 
   lazy val analyzed: LogicalPlan = {
     SparkSession.setActiveSession(sparkSession)
+    // SessionState的analyzer是lazy val，如果是第一次使用会触发analyzer的初始化
     sparkSession.sessionState.analyzer.executeAndCheck(logical)
   }
 

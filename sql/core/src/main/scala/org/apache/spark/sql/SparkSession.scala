@@ -614,6 +614,7 @@ class SparkSession private(
    *
    * @since 2.0.0
    */
+  // 创建字典表
   @transient lazy val catalog: Catalog = new CatalogImpl(self)
 
   /**
