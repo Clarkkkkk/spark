@@ -14,6 +14,9 @@
  * This file is an adaptation of Presto's presto-parser/src/main/antlr4/com/facebook/presto/sql/parser/SqlBase.g4 grammar.
  */
 
+// 使用visit模式依次遍历这个语法树
+// 生成tableIdentifier对象
+
 grammar SqlBase;
 
 @members {

@@ -66,7 +66,10 @@ abstract class AbstractSqlParser extends ParserInterface with Logging {
   }
 
   /** Creates LogicalPlan for a given SQL string. */
+  // 调用SparkSqlParser的parse方法，后者调用substitute变量方法，并用super调用下面的parse
+  // 返回一个UnresolvedLogicalPlan
   override def parsePlan(sqlText: String): LogicalPlan = parse(sqlText) { parser =>
+    // 调用子类astBuilder的实现
     astBuilder.visitSingleStatement(parser.singleStatement()) match {
       case plan: LogicalPlan => plan
       case _ =>
@@ -76,15 +79,18 @@ abstract class AbstractSqlParser extends ParserInterface with Logging {
   }
 
   /** Get the builder (visitor) which converts a ParseTree into an AST. */
+  // SparkSqlAstBuilder的实现
   protected def astBuilder: AstBuilder
 
   protected def parse[T](command: String)(toResult: SqlBaseParser => T): T = {
     logDebug(s"Parsing command: $command")
 
+    // 构造词法分词器
     val lexer = new SqlBaseLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
     lexer.addErrorListener(ParseErrorListener)
 
+    // 构造Token流
     val tokenStream = new CommonTokenStream(lexer)
     val parser = new SqlBaseParser(tokenStream)
     parser.addParseListener(PostProcessor)

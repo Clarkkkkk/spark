@@ -647,6 +647,8 @@ class SparkSession private(
    */
   // 直接使用SQL语句，会调用解析器
   def sql(sqlText: String): DataFrame = {
+    // 调用AbstractSqlParser的parse方法并返回LogicalPlan
+    // 再生成DataSet
     Dataset.ofRows(self, sessionState.sqlParser.parsePlan(sqlText))
   }
 

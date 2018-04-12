@@ -30,6 +30,7 @@ import org.apache.spark.storage.StorageLevel
  * @since 2.0.0
  */
 @InterfaceStability.Stable
+// 字典表，用于注册表
 abstract class Catalog {
 
   /**

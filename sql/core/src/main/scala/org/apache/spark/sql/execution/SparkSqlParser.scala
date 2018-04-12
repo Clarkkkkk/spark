@@ -39,7 +39,9 @@ import org.apache.spark.sql.types.StructType
 /**
  * Concrete parser for Spark SQL statements.
  */
+// 创建SQLParse，由BaseSessionStateBuilder创建并封装到SessionState中
 class SparkSqlParser(conf: SQLConf) extends AbstractSqlParser {
+  // SparkSqlAstBuilder负责将antlr解析完的sql 语句转化成LogicalPlan
   val astBuilder = new SparkSqlAstBuilder(conf)
 
   private val substitutor = new VariableSubstitution(conf)
