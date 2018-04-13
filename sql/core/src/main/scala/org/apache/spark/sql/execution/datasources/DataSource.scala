@@ -202,6 +202,8 @@ case class DataSource(
     val dataSchema = userSpecifiedSchema.map { schema =>
       StructType(schema.filterNot(f => partitionSchema.exists(p => equality(p.name, f.name))))
     }.orElse {
+      // 用户没有指定Schema，
+      // 调用FileFormat的inferSchema获取Schema(e.g. JsonFileFormat)
       format.inferSchema(
         sparkSession,
         caseInsensitiveOptions,
@@ -379,6 +381,7 @@ case class DataSource(
                 "It must be specified manually")
         }
 
+        // 如果是TextFormatFile的话
         HadoopFsRelation(
           fileCatalog,
           partitionSchema = fileCatalog.partitionSchema,
@@ -399,10 +402,15 @@ case class DataSource(
 
         // 创建一个文件状态的共享缓存
         val fileStatusCache = FileStatusCache.getOrCreate(sparkSession)
+        // 获取DataSchema和ParitionSchema，如果没有会再次创建新的DataSource来获取Scheme
+        // 如果是TextFormatFile，那么直接返回只包含value：String的StructType
+        // 如果是JsonFormatFile，会尝试创建一个TextFileFormat的DataSource，获取TextFormatFile的schema，并构造一个DataSet
+        // 用Select将value提取出来并构成一个BaseDataSet
         val (dataSchema, partitionSchema) = getOrInferFileFormatSchema(format, fileStatusCache)
 
         val fileCatalog = if (sparkSession.sqlContext.conf.manageFilesourcePartitions &&
             catalogTable.isDefined && catalogTable.get.tracksPartitionsInCatalog) {
+          // 如果在Catalog表中
           val defaultTableSize = sparkSession.sessionState.conf.defaultSizeInBytes
           new CatalogFileIndex(
             sparkSession,
@@ -613,7 +621,7 @@ object DataSource extends Logging {
     "org.apache.spark.Logging")
 
   /** Given a provider name, look up the data source class definition. */
-  // 通过classLoader，根据source的名字获取source类
+  // 通过classLoader，根据source的名字获取sourceProvider类
   def lookupDataSource(provider: String, conf: SQLConf): Class[_] = {
     // 如果Map中存在对应的名称，转成CanonicalName
     val provider1 = backwardCompatibilityMap.getOrElse(provider, provider) match {

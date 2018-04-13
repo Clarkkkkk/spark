@@ -54,6 +54,8 @@ class JsonFileFormat extends TextBasedFileFormat with DataSourceRegister {
       options,
       sparkSession.sessionState.conf.sessionLocalTimeZone,
       sparkSession.sessionState.conf.columnNameOfCorruptRecord)
+    // 获取具体的JsonDataSource实现类，如TextJsonDataSource
+    // 调用实现类的inferSchema来获取schema
     JsonDataSource(parsedOptions).inferSchema(
       sparkSession, files, parsedOptions)
   }

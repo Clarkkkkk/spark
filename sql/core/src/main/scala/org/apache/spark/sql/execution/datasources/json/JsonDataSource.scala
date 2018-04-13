@@ -59,7 +59,9 @@ abstract class JsonDataSource extends Serializable {
       sparkSession: SparkSession,
       inputPaths: Seq[FileStatus],
       parsedOptions: JSONOptions): Option[StructType] = {
+    // 获取JsonSchema
     if (inputPaths.nonEmpty) {
+      // 调用具体实现类的infer方法
       Some(infer(sparkSession, inputPaths, parsedOptions))
     } else {
       None
@@ -92,12 +94,16 @@ object TextInputJsonDataSource extends JsonDataSource {
       sparkSession: SparkSession,
       inputPaths: Seq[FileStatus],
       parsedOptions: JSONOptions): StructType = {
+    // 根据路径创建BaseDataSet
     val json: Dataset[String] = createBaseDataset(sparkSession, inputPaths)
+    // 从BaseDataSet中获取Json的Schema
     inferFromDataset(json, parsedOptions)
   }
 
   def inferFromDataset(json: Dataset[String], parsedOptions: JSONOptions): StructType = {
+    // 从BaseDataSet中取样，运行时看到的是取全部
     val sampled: Dataset[String] = JsonUtils.sample(json, parsedOptions)
+    // 使用queryExecution转化为rdd, 这里把先把plan优化了
     val rdd: RDD[UTF8String] = sampled.queryExecution.toRdd.map(_.getUTF8String(0))
     JsonInferSchema.infer(rdd, parsedOptions, CreateJacksonParser.utf8String)
   }
@@ -106,12 +112,19 @@ object TextInputJsonDataSource extends JsonDataSource {
       sparkSession: SparkSession,
       inputPaths: Seq[FileStatus]): Dataset[String] = {
     val paths = inputPaths.map(_.getPath.toString)
+    // 再一次创建DataSource，这一次将checkFileExist设为false
+    // 因为在第一次创建DataSource的时候已经检查过路径
+    // 在这里resolveRelation获取到了TextFileFormat的Schema并从
+    // baseRelation中构造出DataFrame，将value全部提取出来
+    // 构造DataFrame使用了DataSet的ofRow方法会对plan进行优化
     sparkSession.baseRelationToDataFrame(
       DataSource.apply(
         sparkSession,
         paths = paths,
+        // 将SourceProvider的类设为TextFileFormat
         className = classOf[TextFileFormat].getName
       ).resolveRelation(checkFilesExist = false))
+      // 调用select将DataSet的泛型类型变成Encoders.STRING
       .select("value").as(Encoders.STRING)
   }
 

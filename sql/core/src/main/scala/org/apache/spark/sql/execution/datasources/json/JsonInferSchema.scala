@@ -46,6 +46,7 @@ private[sql] object JsonInferSchema {
     val columnNameOfCorruptRecord = configOptions.columnNameOfCorruptRecord
 
     // perform schema inference on each row and merge afterwards
+    // fold 会触发job的submit
     val rootType = json.mapPartitions { iter =>
       val factory = new JsonFactory()
       configOptions.setJacksonOptions(factory)
